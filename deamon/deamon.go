@@ -21,3 +21,32 @@ func main() {
 	}
 	fmt.Printf("\n")
 }
+
+func FindProcessPidByName(processName string) []int {
+	var pids []int
+	fd, _ := ioutil.ReadDir("/proc")
+	for _, fi := range fd {
+		fiName := fi.Name()
+		pid, err := strconv.Atoi(fiName)
+		if err == nil {
+			statusFile := path.Join("/proc", fiName, "status")
+			f, err := ioutil.ReadFile(statusFile)
+			if err != nil {
+				continue
+			}
+
+			name := string(f[6:bytes.IndexByte(f, '\n')])
+			if name == processName {
+				pids = append(pids, pid)
+			}
+
+		} else {
+			continue
+		}
+	}
+	return pids
+}
+func KillProcess(pid int) {
+	proc, _ := os.FindProcess(pid)
+	proc.Kill()
+}
