@@ -6,6 +6,8 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 
 	"io/ioutil"
 	"log"
@@ -14,29 +16,29 @@ import (
 	"time"
 )
 
-type AlertMessage struct {
-	Id      string
-	Title   string
-	Time    string
-	Message string
+type AMessage struct {
+	Id      string `json:"id"`
+	Title   string `json:"title"`
+	Time    string `json:"time"`
+	Message string `json:"message"`
 }
 type AlertMannager struct {
-	Url string
-	Id  string
-	AM  AlertMessage
+	AlertUrl     string
+	AlertId      string
+	AlertMessage AMessage
 }
 type Alert interface {
 	gzipBase64(message interface{}) string
 	unGzipBase64(message string) interface{}
-	post(message string) string
-	Send(title string, message string)
+	post(message string) (string, error)
+	Send(title string, message string) (string, error)
 }
 
 func NewAlert(url string, id string) Alert {
-	am := new(AlertMannager)
-	am.Url = url
-	am.Id = id
-	return am
+	m := new(AlertMannager)
+	m.AlertUrl = url
+	m.AlertId = id
+	return m
 }
 
 // struct -> jsonString -> Gzip -> base64 -> string
@@ -69,25 +71,27 @@ func (m *AlertMannager) unGzipBase64(message string) interface{} {
 	return messageStruct
 }
 
-func (m *AlertMannager) post(message string) string {
-	resp, err := http.Post(m.Url, "application/x-www-form-urlencoded", strings.NewReader(message))
+func (m *AlertMannager) post(message string) (string, error) {
+	resp, err := http.Post(m.AlertUrl, "application/x-www-form-urlencoded", strings.NewReader(message))
 	if err != nil {
-		log.Println(err)
+		return "", errors.New(fmt.Sprintln(err))
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "Error"
+		return "", errors.New(fmt.Sprintln(err))
 	}
-	return string(body)
+	return string(body), nil
 }
 
-func (m *AlertMannager) Send(title string, message string) {
-	m.AM.Id = m.Id
-	m.AM.Title = title
-	m.AM.Time = time.Now().Format("2006-01-02 15:04:05")
-	m.AM.Message = message
-	messageGzipBase64 := m.gzipBase64(m.AM)
-	abc := m.unGzipBase64(messageGzipBase64)
-	log.Println("unGzipBase64:", abc)
+func (m *AlertMannager) Send(title string, message string) (string, error) {
+	m.AlertMessage.Id = m.AlertId
+	m.AlertMessage.Title = title
+	m.AlertMessage.Time = time.Now().Format("2006-01-02 15:04:05")
+	m.AlertMessage.Message = message
+	messageGzipBase64 := m.gzipBase64(m.AlertMessage)
+	// abc := m.unGzipBase64(messageGzipBase64)
+	// log.Println("unGzipBase64:", abc)
+	return m.post(messageGzipBase64)
+
 }

@@ -1,38 +1,72 @@
-// watchdog
 package main
 
 import (
-	// "log"
+	"flag"
 	"fmt"
-	"time"
+	"os"
+	"strings"
 
-	"./wd"
+	"../../cdeamon"
+	"../../ctask"
+	"./define"
+	"./dog"
+	"./event"
+	"./grpc"
+	"github.com/astaxie/beego/logs"
 )
 
+func init() {
+	// info 级别
+	//logs.SetLogger(logs.AdapterConsole, `{"level":6,"color":true}`)
+	//默认7 debug 级别
+	logs.SetLogger(logs.AdapterFile, `{"filename":"logs/watch.log","daily":true,"maxdays":10}`)
+	logs.Async()
+}
 func main() {
-	tasker := wd.NewTasker()
-	tasker.AddTask(5, 10, "Task1", Task1, "args")
-	for i := 0; i < 10; i++ {
-		taskId := fmt.Sprintf("Task2-%d", i)
-		tasker.AddTask(5, 10, taskId, Task2)
+	var serverMode bool
+	flag.BoolVar(&serverMode, "server", false, "server mode")
+	clusterHostsP := flag.String("cluster", "", "host1:host2:host3")
+	flag.Parse()
+	flagArgs := flag.Args()
+
+	//client mode
+	if !serverMode {
+		dog.Client()
+		return
 	}
+
+	//server mode
+	if len(flagArgs) > 0 {
+		if flagArgs[0] == "stop" {
+			cdeamon.Stop()
+			return
+		} else if flagArgs[0] == "restart" {
+			cdeamon.Stop()
+		}
+	}
+
+	if cdeamon.IsRunning() {
+		fmt.Println("already run")
+		return
+	}
+	if cdeamon.IsDeamon() {
+		return
+	}
+
+	hostname, _ := os.Hostname()
+	define.Master = ""
+	define.Hostname = hostname
+	if *clusterHostsP == "" {
+		define.ClusterHosts = append(define.ClusterHosts, hostname)
+	} else {
+		define.ClusterHosts = strings.Split(*clusterHostsP, ":")
+	}
+
+	tasker := ctask.NewTasker()
+	tasker.SetTaskConsolePort(8888)
+	tasker.AddTask(5, 100000000, "RpcServer", grpc.RpcServer)
+	tasker.AddTask(5, 20, "ElectMaster", event.ElectMaster)
+	tasker.AddTask(5, 20, "CheckDisk", event.CheckDisk)
+	tasker.AddTask(5, 20, "Query", event.Query)
 	tasker.RunTask()
-}
-
-func Task1(ch chan string, arg1 string) {
-	for i := 0; i < 50; i++ {
-		time.Sleep(time.Second * 1)
-		// log.Printf("Task1")
-		ch <- "feeddog"
-	}
-	ch <- "goodby"
-}
-
-func Task2(ch chan string) {
-	for i := 0; i < 100000; i++ {
-		time.Sleep(time.Second * 2)
-		// log.Printf("Task2")
-		ch <- "feeddog"
-	}
-	ch <- "goodby"
 }

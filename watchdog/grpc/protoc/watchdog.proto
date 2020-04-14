@@ -1,0 +1,21 @@
+syntax = "proto3";
+package watchdog;
+
+
+// The Customer service definition.
+service WatchDog {   
+  rpc ForMaster (Request) returns (Response) {}
+  rpc ForAgent (Request) returns (Response) {}
+}
+
+// Request message for creating a new customer
+message Request {
+  string data1 = 1;
+  string data2 = 2;
+  string data3 = 3;
+}
+message Response {
+  string data1  = 1;
+  string data2  = 2;
+  string data3  = 3;
+}
